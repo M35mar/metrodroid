@@ -14,6 +14,7 @@ import au.id.micolous.metrodroid.transit.troika.TroikaUltralightTransitData
 import au.id.micolous.metrodroid.transit.unknown.BlankUltralightTransitFactory
 import au.id.micolous.metrodroid.transit.unknown.UnauthorizedUltralightTransitData
 import au.id.micolous.metrodroid.transit.venezia.VeneziaUltralightTransitFactory
+import au.id.micolous.metrodroid.transit.ricaricami.Ricaricami2004UltralightTransitFactory
 
 object UltralightTransitRegistry {
      val allFactories = listOf(
@@ -30,6 +31,8 @@ object UltralightTransitRegistry {
             AmiiboTransitFactory,
             HSLUltralightTransitFactory,
             NdefUltralightTransitFactory,
+
+            Ricaricami2004UltralightTransitFactory,
 
             BlankUltralightTransitFactory,
             // This check must be LAST.
