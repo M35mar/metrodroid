@@ -30,9 +30,8 @@ object UltralightTransitRegistry {
             PisaUltralightTransitFactory(),
             AmiiboTransitFactory,
             HSLUltralightTransitFactory,
-            NdefUltralightTransitFactory,
-
             Ricaricami2004UltralightTransitFactory,
+            NdefUltralightTransitFactory,
 
             BlankUltralightTransitFactory,
             // This check must be LAST.
