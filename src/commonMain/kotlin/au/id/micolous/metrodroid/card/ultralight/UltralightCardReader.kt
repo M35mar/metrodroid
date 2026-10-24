@@ -20,6 +20,7 @@
 
 package au.id.micolous.metrodroid.card.ultralight
 
+import au.id.micolous.metrodroid.card.CardLostException
 import au.id.micolous.metrodroid.card.CardTransceiveException
 import au.id.micolous.metrodroid.card.CardTransceiver
 import au.id.micolous.metrodroid.card.TagReaderFeedbackInterface
@@ -78,9 +79,33 @@ object UltralightCardReader {
             pageNumber++
         }
 
+        // One-way counters are a MIFARE Ultralight EV1 / NTAG feature, signalled by a
+        // successful GET_VERSION earlier. Cards without password protection on the
+        // counters return them unauthenticated; anything else is skipped.
+        val counters = mutableListOf<Int>()
+        if (tRaw.versionCmd != null) {
+            for (n in 0 until 3) {
+                try {
+                    val reply = p.getCounter(n.toByte())
+                    if (reply.size >= 3) {
+                        counters += (reply[0].toInt() and 0xff) or
+                                ((reply[1].toInt() and 0xff) shl 8) or
+                                ((reply[2].toInt() and 0xff) shl 16)
+                    }
+                } catch (e: CardTransceiveException) {
+                    Log.d(TAG, "Unable to read counter $n", e)
+                    tech.reconnect()
+                } catch (e: CardLostException) {
+                    Log.d(TAG, "Card lost while reading counter $n", e)
+                    tech.reconnect()
+                    break
+                }
+            }
+        }
+
         // Now we have pages to stuff in the card.
         return UltralightCard(cardModel = t.toString(), cardRawModel = tRaw,
-            pages = pages, isPartialRead = false)
+            pages = pages, isPartialRead = false, counters = counters)
     }
 
     class PageReader(val base: CardTransceiver) : CardTransceiver by base, UltralightTransceiver {

@@ -138,6 +138,15 @@ internal class UltralightProtocol(private val mTagTech: CardTransceiver) {
 
     }
 
+    /**
+     * Reads a one-way counter. This only works on MIFARE Ultralight EV1 and NTAG cards.
+     * @return the 4-byte reply: 3 bytes of counter (LSB first) followed by the
+     * tearing/PACK byte (1-byte CMAC when password protection is enabled).
+     * @throws CardTransceiveException on card communication failure, or if the card does
+     * not support the command or the counter is password-protected.
+     */
+    fun getCounter(address: Byte): ImmutableByteArray = sendRequest(GET_COUNTER, address)
+
     private fun sendRequest(vararg data: Byte): ImmutableByteArray {
         Log.d(TAG,  "sent card: " + ImmutableByteArray.getHexString(data))
 
@@ -151,6 +160,7 @@ internal class UltralightProtocol(private val mTagTech: CardTransceiver) {
         private const val GET_VERSION = 0x60.toByte()
         private const val AUTH_1 = 0x1a.toByte()
         private const val HALT = 0x50.toByte()
+        private const val GET_COUNTER = 0x39.toByte()
 
         // Status codes
         const val AUTH_ANSWER = 0xAF.toByte()

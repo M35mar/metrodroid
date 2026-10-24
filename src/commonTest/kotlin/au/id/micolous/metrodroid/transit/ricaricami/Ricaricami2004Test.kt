@@ -31,38 +31,40 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Dumps from https://github.com/metrodroid/metrodroid/issues/875 (2025-04):
+ * Dumps captured while travelling with real tickets (2025-03/04):
  *
- * - [DUMP_LOADED]: card bought (loaded) at a ticket machine, but not used afterwards;
- *   the contract is only in slot 1 (pages 17-21).
+ * - [DUMP_SINGLE_USED]: single-ride ticket, tap-in 08:10 at Rondò, tap-out 08:59 at
+ *   Rho Fiera (pages 24-26 and 30-32); one-way counter 0 reports no rides left.
  *
- * - [DUMP_USED]: card used to enter a station, then recharged afterwards; both contract
- *   slots (pages 10-14 and 17-21) and the validation log (pages 22-34) contain data.
+ * - [DUMP_CARNET_RECHARGED]: 10-ride carnet recharged at 10 rides. A recharge clears
+ *   validation slot A; slot B still holds the last validation before the recharge
+ *   (tap-out 00:48 at Rondò). Note the timestamp word 0x00C0 without the 0x4000 day
+ *   marker. Counter 0 = rides 10.
  */
-private const val DUMP_LOADED = """
-0444B47C 72A91A90 51480000 00000000
-86080000 00000000 00000000 B4629F47
-00000000 E45C689D 00000000 00000000
+private const val DUMP_SINGLE_USED = """
+04FD87F6 32881D95 32480000 00000000
+86080000 00000000 84BEB8B7 DB167269
+00000000 CEEDBD7F 00000000 00000000
 00000000 00000000 00000000 00000000
-00000000 38071203 E5D7E138 6D6103D3
-F923EC02 36F02000 00000000 00000000
-00000000 00000000 00000000 00000000
-00000000 00000000 00000000 00000000
-00000000 00000000 00000000 00000001
+00000000 38071203 E5D7E13A FD6103D3
+F923EC02 36D22000 00000000 00000000
+FE47A804 61582034 813D5C40 00000000
+00000000 00000001 FE486C04 62582032
+B13D5C40 00000000 00000000 00000001
 000000BD 000000FF 00050000 00000000
 00000000
 """
 
-private const val DUMP_USED = """
-0452F32D 92171D91 09480000 00000000
-86080000 00000000 04E4A6CA 3727D51C
-80C006F8 0EB769CB 38071203 E5D7E138
-4D6103D3 F9A3FC04 5E442000 00000000
-00000000 38071203 E5D4C138 3F49022B
-81F48212 53F97F28 C045FEF0 01980000
-FE4EFC08 A15C2045 7177FC40 18008AE0
-02000000 00000001 00000000 00000000
+private const val DUMP_CARNET_RECHARGED = """
+04FCFE8E 3A7E1C90 C8480000 00000000
+86080000 00000000 C5B0F647 DC1AEF17
+C5CB0B26 C9F85CAB 38071203 E5D7ED3C
+3D6103D3 F9526C02 2BD42000 00000000
+00000000 38071203 E5D7ED3E 0D6103D3
+F9525C02 2B7E2000 00000000 00000000
 00000000 00000000 00000000 00000000
+00000000 00000001 FB00C004 62582034
+81041C41 00000000 00000000 00000000
 000000BD 000000FF 00050000 00000000
 00000000
 """
@@ -70,14 +72,18 @@ FE4EFC08 A15C2045 7177FC40 18008AE0
 private fun pagesOf(dump: String): List<UltralightPage> =
         dump.trim().split(Regex("\\s+")).map { UltralightPage(ImmutableByteArray.fromHex(it)) }
 
-private fun cardOf(dump: String): UltralightCard = UltralightCard(
-        cardModel = "MF0UL21",
-        pages = pagesOf(dump))
+private fun cardOf(dump: String, counters: List<Int> = emptyList()): UltralightCard =
+        UltralightCard(
+                cardModel = "MF0UL21",
+                pages = pagesOf(dump),
+                counters = counters)
 
 class Ricaricami2004Test {
     @Test
-    fun testLoadedCard() {
-        val card = cardOf(DUMP_LOADED)
+    fun testSingleRideUsedCard() {
+        // Counters as read on the card at this state: counter0 = ride complement,
+        // counter1 = 0, counter2 grows by 256/512/768 per event.
+        val card = cardOf(DUMP_SINGLE_USED, counters = listOf(131071, 0, 1792))
 
         assertTrue(Ricaricami2004UltralightTransitFactory.check(card))
 
@@ -85,36 +91,57 @@ class Ricaricami2004Test {
         assertNotNull(id)
         assertEquals(Ricaricami2004UltralightTransitFactory.NAME, id.name)
         // ISO 14443 UID: 3 bytes of page 0 + the 4 bytes of page 1.
-        assertEquals("0444b472a91a90", id.serialNumber)
+        assertEquals("04fd8732881d95", id.serialNumber)
 
         val data = Ricaricami2004UltralightTransitFactory.parseTransitData(card)
         assertIs<Ricaricami2004UltralightTransitData>(data)
-        assertEquals("0444b472a91a90", data.serialNumber)
-        // Loaded card: contract 1 (pages 17-21) is present; contract 2 (pages 10-14)
-        // is empty.
+        assertEquals("04fd8732881d95", data.serialNumber)
+
+        // One ride used at this state.
+        assertEquals(0, data.rides)
+
+        // Validation slots: tap-in 08:10 Rondò (ATM), then tap-out 08:59 Rho (ATM).
+        val taps = data.taps
+        assertEquals(2, taps.size)
+        assertEquals(490, taps[0].timeMinutes)
+        assertEquals(0x34, taps[0].stationCode)
+        assertEquals(0x61, taps[0].kindCode)
+        assertEquals(539, taps[1].timeMinutes)
+        assertEquals(0x32, taps[1].stationCode)
+        assertEquals(0x62, taps[1].kindCode)
+
+        // Raw slot data is shown for undecoded fields ("sviluppi" scope).
         val info = assertNotNull(data.info)
+        assertTrue(info.any { it is ListItem && it.text1?.toString() == "Validation slot A (pages 6, 24-26)" })
         assertTrue(info.any { it is ListItem && it.text1?.toString() == "Contract 1 (pages 17-21)" })
-        assertFalse(info.any { it is ListItem && it.text1?.toString() == "Contract 2 (pages 10-14)" })
-        assertFalse(info.any { it is ListItem && it.text1?.toString() == "Validation log (pages 22-34)" })
     }
 
     @Test
-    fun testUsedCard() {
-        val card = cardOf(DUMP_USED)
+    fun testCarnetRechargedCard() {
+        // Counter0 complement of 10 rides after the recharge; counter1 = 0.
+        val card = cardOf(DUMP_CARNET_RECHARGED, counters = listOf(262133, 0, 13312))
 
         assertTrue(Ricaricami2004UltralightTransitFactory.check(card))
 
-        val id = Ricaricami2004UltralightTransitFactory.parseTransitIdentity(card)
-        assertNotNull(id)
-        assertEquals("0452f392171d91", id.serialNumber)
-
         val data = Ricaricami2004UltralightTransitFactory.parseTransitData(card)
         assertIs<Ricaricami2004UltralightTransitData>(data)
-        // Used card: both contract slots and the validation log contain data.
+
+        assertEquals(10, data.rides)
+
+        // The recharge cleared slot A; slot B holds the last tap-out of the old block:
+        // 00:48 (48 minutes of day) at Rondò. This exercises the timestamp parse
+        // without the 0x4000 day marker.
+        val taps = data.taps
+        assertEquals(1, taps.size)
+        assertEquals(48, taps[0].timeMinutes)
+        assertEquals(0x34, taps[0].stationCode)
+        assertEquals(0x62, taps[0].kindCode)
+
         val info = assertNotNull(data.info)
+        // The reload zeroed the event pages of slot A (24-26), but its MAC page (6)
+        // is still non-zero, so the raw item is still shown.
+        assertTrue(info.any { it is ListItem && it.text1?.toString() == "Validation slot A (pages 6, 24-26)" })
         assertTrue(info.any { it is ListItem && it.text1?.toString() == "Contract 1 (pages 17-21)" })
-        assertTrue(info.any { it is ListItem && it.text1?.toString() == "Contract 2 (pages 10-14)" })
-        assertTrue(info.any { it is ListItem && it.text1?.toString() == "Validation log (pages 22-34)" })
     }
 
     @Test
@@ -129,7 +156,8 @@ class Ricaricami2004Test {
             00000000 00000000 00000000 00000000
             00000000 00000000 00000000 00000000
             00000000 00000000 00000000 00000000
-            00000000 00000000 00000000
+            00000000 00000000 00000000 00000000
+            00000000
         """)
 
         val card = UltralightCard(cardModel = "MF0UL21", pages = pages)
@@ -143,7 +171,7 @@ class Ricaricami2004Test {
             047926D3 228E3A80 16480000 00000000
             00000000 00000000 00000000 00000000
             00000000 00000000 00000000 00000000
-            00000000 00000000 00000000
+            00000000 00000000 00000000 00000000
         """)
 
         val card = UltralightCard(cardModel = "MF0ICU1", pages = pages)
@@ -152,7 +180,7 @@ class Ricaricami2004Test {
 
     @Test
     fun testUnauthorizedPagesDoNotCrash() {
-        val pages = pagesOf(DUMP_LOADED).mapIndexed { idx, page ->
+        val pages = pagesOf(DUMP_SINGLE_USED).mapIndexed { idx, page ->
             if (idx == 4 || idx == 36) UltralightPage.unauthorized() else page
         }
 

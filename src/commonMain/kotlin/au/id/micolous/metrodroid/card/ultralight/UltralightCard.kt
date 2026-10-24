@@ -53,7 +53,13 @@ data class UltralightCard constructor(
         @XMLListIdx("index")
         val pages: List<UltralightPage>,
         override val isPartialRead: Boolean = false,
-        val cardRawModel: UltralightTypeRaw? = null
+        val cardRawModel: UltralightTypeRaw? = null,
+        /**
+         * One-way counters, as reported by GET_COUNTER (Ultralight EV1 and NTAG).
+         * Unreadable counters are omitted; empty on cards older than EV1 or on
+         * dumps from previous app versions.
+         */
+        val counters: List<Int> = emptyList()
 ) : CardProtocol() {
     override val manufacturingInfo: List<ListItemInterface>?
         get() {

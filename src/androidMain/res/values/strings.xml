@@ -2624,6 +2624,18 @@
     <string name="ricaricami_yearly_urban">Urban annual subscription</string>
     <string name="ricaricami_monthly_urban">Urban monthly subscription</string>
     <string name="ricaricami_m1_3_ord_single">Ordinary Nr.1 3 zones Mi1-Mi3</string>
+    <!-- Ricaricami (2024, MIFARE Ultralight EV1) -->
+    <string name="ricaricami2004_rides_remaining">Rides remaining</string>
+    <string name="ricaricami2004_counter_0">Ticket counter (raw)</string>
+    <string name="ricaricami2004_counter_2">Monitoring counter (raw)</string>
+    <string name="ricaricami2004_taps">Recent validations</string>
+    <string name="ricaricami2004_tap_in">Tap-in</string>
+    <string name="ricaricami2004_tap_out">Tap-out</string>
+    <string name="ricaricami2004_tap_reentry">Tap-in (again)</string>
+    <string name="ricaricami2004_tap_in_train">Tap-in (Trenord)</string>
+    <string name="ricaricami2004_tap_out_train">Tap-out (Trenord)</string>
+    <string name="ricaricami2004_tap_scan_train">Scan (Trenord)</string>
+    <string name="ricaricami2004_tap_unknown">Tap (unknown)</string>
 
     <string name="venezia_ticket_24h">24-hour ticket</string>
     <!-- Translators: "Rete Unica" litelrally "Unique Network" is
